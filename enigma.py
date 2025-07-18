@@ -85,21 +85,20 @@ def load_enigma_from_path(path):
     try:
         with open(path, "r") as f:
             data = json.load(f)
+        return Enigma(
+            hash_map=data['hash_map'],
+            wheels=data['wheels'],
+            reflector_map=data['reflector_map']
+        )
     except (OSError, json.JSONDecodeError) as e:
         raise JsonFileException(f"Invalid JSON file: {path}") from e
 
-    # Validate keys
-    for key in ("hash_map", "wheels", "reflector_map"):
-        if key not in data:
-            raise JsonFileException(f"Missing key '{key}' in {path}")
+    except (json.JSONDecodeError, FileNotFoundError):
+        raise Exception("Error reading JSON file")
+    except (TypeError, ValueError) as e:
+        raise Exception("Invalid configuration")
 
-    # Create and return Enigma
-    return Enigma(
-        data["hash_map"],
-        data["wheels"],
-        data["reflector_map"]
-    )
-
+   
 
 def main(arguments):
 
