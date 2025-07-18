@@ -1,6 +1,5 @@
 import json
-
-
+import sys
 
 class Enigma:
 
@@ -14,13 +13,13 @@ class Enigma:
     def encrypt(self, message):
         s = ""
         for ch in message:
-            s += self.encryptLetter(ch)
-        self.IncreaseWheels()
+            s += self.encrypt_letter(ch)
+        self.increase_wheels()
         self.reset()
         return s
 
 
-    def encryptLetter(self,letter):
+    def encrypt_letter(self,letter):
         c3 = letter
         if not letter.isalpha() or not letter.islower():
             return c3
@@ -45,7 +44,7 @@ class Enigma:
         return c3
 
 
-    def IncreaseWheels (self):
+    def increase_wheels (self):
         if self.wheels[0] > 8:
             self.wheels[0] = 1
         else :
@@ -90,4 +89,20 @@ def load_enigma_from_path(path):
         data["wheels"],
         data["reflector_map"]
     )
+
+
+def main():
+    if len(sys.argv) != 2:  # we expect exactly one extra argument
+        print("wrong number of arguments")
+        sys.exit(1)
+    path = sys.argv[1]
+    try:
+        enigma = load_enigma_from_path(path)
+    except JsonFileException as exc:
+        # give a short, user-friendly message but keep the exit status ≠ 0
+        print("Invalid JSON file")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
 
