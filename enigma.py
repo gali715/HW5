@@ -1,6 +1,14 @@
 import json
 import sys
 
+class JsonFileException(Exception):
+    pass
+LETTERS_NUM = 26
+TWO = 2
+USAGE_ERROR = "Usage: python3 enigma.py -c <config_file> -i <input_file> -o <output_file>"
+SCRIPT_ERROR = "The enigma script has encountered an error"
+
+
 class Enigma:
 
     def __init__(self, hash_map, wheels, reflector_map):
@@ -26,12 +34,12 @@ class Enigma:
         else:
             self.counter += 1
             i = self.hash_map[letter]
-            increase = (((self.wheels[0]*2)*self.wheels[1]+self.wheels[2]) % 26)
+            increase = (((self.wheels[0]*2)*self.wheels[1]+self.wheels[2]) % LETTERS_NUM)
             if increase != 0:
                 i += increase
             else:
                 i += 1
-            i %= 26
+            i %= LETTERS_NUM
             c1 =  self.hash_map[i]
             c2 = self.reflector_map[c1]
             i = self.hash_map[c2]
@@ -39,7 +47,7 @@ class Enigma:
                 i -= increase
             else:
                 i -= 1
-            i %= 26
+            i %= LETTERS_NUM
             c3 = self.hash_map[i]
         return c3
 
@@ -49,16 +57,16 @@ class Enigma:
             self.wheels[0] = 1
         else :
             self.wheels[0] +=1
-        if self.counter % 2 == 0 :
-            self.wheels[1] *= 2
+        if self.counter % TWO == 0 :
+            self.wheels[1] *= TWO
         else:
             self.wheels[1] -= 1
         if self.counter % 10 == 0 :
-            self.wheels[2] = 10
+            self.wheels[TWO] = 10
         elif self.counter % 3 == 0 :
-            self.wheels[2] = 5
+            self.wheels[TWO] = 5
         else :
-            self.wheels[2] = 0
+            self.wheels[TWO] = 0
 
     def reset(self, wheels=None):
         self.counter = 0
@@ -68,12 +76,10 @@ class Enigma:
             self.wheels = list(wheels)
 
 
-class JsonFileException(Exception):
-    pass
 
 def load_enigma_from_path(path):
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, "r") as f:
             data = json.load(f)
     except (OSError, json.JSONDecodeError) as e:
         raise JsonFileException(f"Invalid JSON file: {path}") from e
@@ -91,18 +97,41 @@ def load_enigma_from_path(path):
     )
 
 
-def main():
-    if len(sys.argv) != 2:  # we expect exactly one extra argument
-        print("wrong number of arguments")
-        sys.exit(1)
-    path = sys.argv[1]
+def main(arguments):
+
+    if len(sys.argv) != TWO:
+        print('usage: script.py <path_to_dir>')
+    config_path, input_path,output_path = None,None,None
+    for index in range(0, len(arguments),TWO):
+        if arguments[index] == "-c" and arguments[index] is None:
+            config_path = arguments[index+1]
+
+        elif arguments[index] == "-i" and arguments[index] is None:
+            input_path = arguments[index+1]
+        elif arguments[index] == "-o" and arguments[index] is None:
+            output_path = arguments[index+1]
+        else:
+            print(USAGE_ERROR)
+            exit(1)
+    if config_path is None or input_path is None:
+        print(USAGE_ERROR)
+        exit(1)
     try:
-        enigma = load_enigma_from_path(path)
-    except JsonFileException as exc:
+        enigma = load_enigma_from_path(config_path)
+        encrypted = enigma.encrypt(input_path)
+        if output_path:
+            with open(output_path, 'w') as f:
+                for msg in encrypted:
+                    f.write(f"{msg}\n")
+        else:
+            for msg in encrypted:
+                print(msg)
+
+
+    except Exception:
         # give a short, user-friendly message but keep the exit status ≠ 0
-        print("Invalid JSON file")
-        sys.exit(1)
+        print("SCRIPT_ERROR")
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv)
 
