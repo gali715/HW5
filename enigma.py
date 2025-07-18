@@ -1,140 +1,131 @@
-import json
 import sys
+import json
 
-class JsonFileException(Exception):
-    pass
-
+# --- Constants ---
 LETTERS_NUM = 26
-TWO = 2
 USAGE_ERROR = "Usage: python3 enigma.py -c <config_file> -i <input_file> -o <output_file>"
 SCRIPT_ERROR = "The enigma script has encountered an error"
 
 
-class Enigma:
+# --- Exception Class ---
+class JsonFileException(Exception):
+    pass
 
+
+# --- Enigma Machine ---
+class Enigma:
     def __init__(self, hash_map, wheels, reflector_map):
         self.hash_map = hash_map
+        self.reverse_hash = {v: k for k, v in hash_map.items()}
         self._start_wheels = wheels.copy()
         self.reflector_map = reflector_map
-        self.counter = 0
-        self.reverse_hash = {v: k for k, v in hash_map.items()}
-
 
     def encrypt(self, message):
-        if not message:
-            return ""
-
-        s = ""
-        temp_wheels = self._start_wheels.copy()
-        got_encrypted = 0
+        encrypted = ""
+        wheels = self._start_wheels.copy()
+        encrypted_count = 0
 
         for ch in message:
             if ch.islower():
-                s += self.encrypt_letter(ch, temp_wheels)
-                got_encrypted += 1
+                encrypted += self.encrypt_letter(ch, wheels)
+                encrypted_count += 1
             else:
-                s+= ch
-            self.increase_wheels(temp_wheels,got_encrypted)
-        return s
+                encrypted += ch
+            self.update_wheels(wheels, encrypted_count)
 
+        return encrypted
 
-    def encrypt_letter(self,letter,wheels):
-        if not letter.isalpha() or not letter.islower():
-            return letter
-        else:
-            self.counter += 1
-            i = self.hash_map[letter]
-            increase = (((wheels[0]*2)*wheels[1]+wheels[2]) % LETTERS_NUM)
-            if increase != 0:
-                i += increase
-            else:
-                i += 1
-            i %= LETTERS_NUM
-            c1 =  self.reverse_hash[i]
-            c2 = self.reflector_map[c1]
-            i = self.hash_map[c2]
-            if increase != 0:
-                i -= increase
-            else:
-                i -= 1
-            i %= LETTERS_NUM
-            c3 = self.reverse_hash[i]
-        return c3
+    def encrypt_letter(self, ch, wheels):
+        i = self.hash_map[ch]
+        add = ((wheels[0] * 2) - wheels[1] + wheels[2]) % LETTERS_NUM
+        i += add if add != 0 else 1
+        i %= LETTERS_NUM
+        c1 = self.reverse_hash[i]
+        c2 = self.reflector_map[c1]
+        i = self.hash_map[c2]
+        i -= add if add != 0 else 1
+        i %= LETTERS_NUM
+        return self.reverse_hash[i]
 
-
-    def increase_wheels (self, wheels, got_encrypted):
-        if wheels[0] > 8:
-            wheels[0] = 1
-        else :
-            wheels[0] +=1
-        if got_encrypted % TWO == 0 :
-            wheels[1] *= TWO
+    def update_wheels(self, wheels, count):
+        # W1
+        wheels[0] = wheels[0] + 1 if wheels[0] < 8 else 1
+        # W2
+        if count % 2 == 0:
+            wheels[1] *= 2
         else:
             wheels[1] -= 1
-        if got_encrypted % 10 == 0 :
-            wheels[TWO] = 10
-        elif got_encrypted % 3 == 0 :
-            wheels[TWO] = 5
-        else :
-            wheels[TWO] = 0
+        # W3
+        if count % 10 == 0:
+            wheels[2] = 10
+        elif count % 3 == 0:
+            wheels[2] = 5
+        else:
+            wheels[2] = 0
 
 
-
-
+# --- Config Loader ---
 def load_enigma_from_path(path):
     try:
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
         return Enigma(
-            hash_map=data['hash_map'],
-            wheels=data['wheels'],
-            reflector_map=data['reflector_map']
+            hash_map=data["hash_map"],
+            wheels=data["wheels"],
+            reflector_map=data["reflector_map"]
         )
     except (OSError, json.JSONDecodeError) as e:
         raise JsonFileException(f"Invalid JSON file: {path}") from e
 
-    except (json.JSONDecodeError, FileNotFoundError):
-        raise Exception("Error reading JSON file")
-    except (TypeError, ValueError) as e:
-        raise Exception("Invalid configuration")
 
-   
+# --- Main Runner ---
+def main(argv):
+    args = argv[1:]
+    config_path = None
+    input_path = None
+    output_path = None
 
-def main(arguments):
+    # Parse flags manually
+    try:
+        for i in range(0, len(args), 2):
+            if i + 1 >= len(args):
+                raise ValueError()
+            flag, value = args[i], args[i + 1]
+            if flag == "-c":
+                config_path = value
+            elif flag == "-i":
+                input_path = value
+            elif flag == "-o":
+                output_path = value
+            else:
+                raise ValueError()
+    except ValueError:
+        print(USAGE_ERROR, file=sys.stderr)
+        sys.exit(1)
 
-    if len(sys.argv) != TWO:
-        print('usage: script.py <path_to_dir>')
-    config_path, input_path,output_path = None,None,None
-    for index in range(0, len(arguments),TWO):
-        if arguments[index] == "-c" and arguments[index] is None:
-            config_path = arguments[index+1]
+    # Required parameters check
+    if not config_path or not input_path:
+        print(USAGE_ERROR, file=sys.stderr)
+        sys.exit(1)
 
-        elif arguments[index] == "-i" and arguments[index] is None:
-            input_path = arguments[index+1]
-        elif arguments[index] == "-o" and arguments[index] is None:
-            output_path = arguments[index+1]
-        else:
-            print(USAGE_ERROR)
-            exit(1)
-    if config_path is None or input_path is None:
-        print(USAGE_ERROR)
-        exit(1)
     try:
         enigma = load_enigma_from_path(config_path)
-        encrypted = enigma.encrypt(input_path)
-        if output_path:
-            with open(output_path, 'w') as f:
-                for msg in encrypted:
-                    f.write(f"{msg}\n")
-        else:
-            for msg in encrypted:
-                print(msg)
 
+        with open(input_path, "r", encoding="utf-8") as f:
+            messages = f.readlines()
+
+        encrypted_lines = [enigma.encrypt(line.rstrip('\n')) + '\n' for line in messages]
+
+        if output_path:
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.writelines(encrypted_lines)
+        else:
+            sys.stdout.writelines(encrypted_lines)
 
     except Exception:
-        # give a short, user-friendly message but keep the exit status ≠ 0
-        print("SCRIPT_ERROR")
+        print(SCRIPT_ERROR, file=sys.stderr)
+        sys.exit(1)
+
 
 if __name__ == "__main__":
     main(sys.argv)
-
