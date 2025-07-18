@@ -3,6 +3,7 @@ import sys
 
 class JsonFileException(Exception):
     pass
+
 LETTERS_NUM = 26
 TWO = 2
 USAGE_ERROR = "Usage: python3 enigma.py -c <config_file> -i <input_file> -o <output_file>"
@@ -13,34 +14,43 @@ class Enigma:
 
     def __init__(self, hash_map, wheels, reflector_map):
         self.hash_map = hash_map
-        self.wheels = list(wheels)
-        self._start_wheels = list(wheels)
+        self._start_wheels = wheels.copy()
         self.reflector_map = reflector_map
         self.counter = 0
+        self.reverse_hash = {v: k for k, v in hash_map.items()}
+
 
     def encrypt(self, message):
+        if not message:
+            return ""
+
         s = ""
+        temp_wheels = self._start_wheels.copy()
+        got_encrypted = 0
+
         for ch in message:
-            s += self.encrypt_letter(ch)
-        self.increase_wheels()
-        self.reset()
+            if ch.islower():
+                s += self.encrypt_letter(ch, temp_wheels)
+                got_encrypted += 1
+            else:
+                s+= ch
+            self.increase_wheels(temp_wheels,got_encrypted)
         return s
 
 
-    def encrypt_letter(self,letter):
-        c3 = letter
+    def encrypt_letter(self,letter,wheels):
         if not letter.isalpha() or not letter.islower():
-            return c3
+            return letter
         else:
             self.counter += 1
             i = self.hash_map[letter]
-            increase = (((self.wheels[0]*2)*self.wheels[1]+self.wheels[2]) % LETTERS_NUM)
+            increase = (((wheels[0]*2)*wheels[1]+wheels[2]) % LETTERS_NUM)
             if increase != 0:
                 i += increase
             else:
                 i += 1
             i %= LETTERS_NUM
-            c1 =  self.hash_map[i]
+            c1 =  self.reverse_hash[i]
             c2 = self.reflector_map[c1]
             i = self.hash_map[c2]
             if increase != 0:
@@ -48,32 +58,26 @@ class Enigma:
             else:
                 i -= 1
             i %= LETTERS_NUM
-            c3 = self.hash_map[i]
+            c3 = self.reverse_hash[i]
         return c3
 
 
-    def increase_wheels (self):
-        if self.wheels[0] > 8:
-            self.wheels[0] = 1
+    def increase_wheels (self, wheels, got_encrypted):
+        if wheels[0] > 8:
+            wheels[0] = 1
         else :
-            self.wheels[0] +=1
-        if self.counter % TWO == 0 :
-            self.wheels[1] *= TWO
+            wheels[0] +=1
+        if got_encrypted % TWO == 0 :
+            wheels[1] *= TWO
         else:
-            self.wheels[1] -= 1
-        if self.counter % 10 == 0 :
-            self.wheels[TWO] = 10
-        elif self.counter % 3 == 0 :
-            self.wheels[TWO] = 5
+            wheels[1] -= 1
+        if got_encrypted % 10 == 0 :
+            wheels[TWO] = 10
+        elif got_encrypted % 3 == 0 :
+            wheels[TWO] = 5
         else :
-            self.wheels[TWO] = 0
+            wheels[TWO] = 0
 
-    def reset(self, wheels=None):
-        self.counter = 0
-        if wheels is None:
-            self.wheels = self._start_wheels.copy()
-        else:
-            self.wheels = list(wheels)
 
 
 
